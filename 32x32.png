@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FN",
+  "version": "0.5.1",
+  "identifier": "com.fn.controlcenter",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build:bundle",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "FN",
+        "label": "main",
+        "width": 380,
+        "height": 640,
+        "minWidth": 380,
+        "minHeight": 640,
+        "maxWidth": 380,
+        "maxHeight": 640,
+        "resizable": false,
+        "maximizable": false,
+        "fullscreen": false,
+        "center": true,
+        "decorations": false,
+        "transparent": false,
+        "shadow": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "resources/zapret/",
+      "resources/tgws/TgWsProxy_headless.exe",
+      "resources/prerequisites/VC_redist.x64.exe"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": ["Russian"],
+        "displayLanguageSelector": false,
+        "startMenuFolder": "FN",
+        "installerHooks": "./windows/installer-hooks.nsh",
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "windows/installer-header.bmp",
+        "sidebarImage": "windows/installer-sidebar.bmp"
+      }
+    }
+  }
+}
