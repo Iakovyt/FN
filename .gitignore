@@ -1,0 +1,26 @@
+# Node
+node_modules/
+dist/
+.vite/
+.pnpm-store/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+.build/
+
+# Downloaded/bundled binaries (fetched at runtime into %APPDATA%\FN)
+src-tauri/resources/zapret/bin/
+src-tauri/resources/zapret/lists/
+src-tauri/resources/tgws/*.exe
+src-tauri/resources/prerequisites/*.exe
+
+# Local release artifacts
+FN_*_x64-setup.exe
+FN_*_GitHub_Source.zip
+*.msi
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db
