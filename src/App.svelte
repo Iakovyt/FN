@@ -41,54 +41,6 @@
   const minimizeWindow = () => appWindow.minimize();
   const hideToTray = () => appWindow.hide(); // keeps modules running in the tray
 
-  // ---- Eased ("smooth") wheel scrolling for the content area ----------
-  // CSS scroll-behavior only smooths programmatic/keyboard scrolls, so we
-  // animate the wheel ourselves with a small rAF lerp, while still letting
-  // nested scrollers (the log panel) consume the wheel first.
-  let contentEl: HTMLDivElement;
-  let targetY = 0;
-  let rafId = 0;
-
-  function nestedCanScroll(target: EventTarget | null, deltaY: number): boolean {
-    let el = target as HTMLElement | null;
-    while (el && el !== contentEl) {
-      const oy = getComputedStyle(el).overflowY;
-      if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
-        const atTop = el.scrollTop <= 0;
-        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
-        if (!(deltaY < 0 && atTop) && !(deltaY > 0 && atBottom)) return true;
-      }
-      el = el.parentElement;
-    }
-    return false;
-  }
-
-  function onWheel(e: WheelEvent) {
-    if (!contentEl || contentEl.scrollHeight <= contentEl.clientHeight) return;
-    if (nestedCanScroll(e.target, e.deltaY)) return; // let the log panel scroll
-    e.preventDefault();
-    const max = contentEl.scrollHeight - contentEl.clientHeight;
-    targetY = Math.max(0, Math.min(max, targetY + e.deltaY));
-    if (!rafId) rafId = requestAnimationFrame(stepScroll);
-  }
-
-  function stepScroll() {
-    const cur = contentEl.scrollTop;
-    const diff = targetY - cur;
-    if (Math.abs(diff) < 0.5) {
-      contentEl.scrollTop = targetY;
-      rafId = 0;
-      return;
-    }
-    contentEl.scrollTop = cur + diff * 0.18;
-    rafId = requestAnimationFrame(stepScroll);
-  }
-
-  function onContentScroll() {
-    // Keep the target in sync when scrolled by other means (keyboard, drag).
-    if (!rafId && contentEl) targetY = contentEl.scrollTop;
-  }
-
   function errText(e: unknown): string {
     if (typeof e === "string") return e;
     if (e && typeof e === "object" && "message" in e) return String((e as any).message);
@@ -158,7 +110,6 @@
   onDestroy(() => {
     unlisteners.forEach((u) => u());
     clearInterval(uptimeTimer);
-    if (rafId) cancelAnimationFrame(rafId);
   });
 
   // ---- Zapret handlers --------------------------------------------------
@@ -237,12 +188,16 @@
     }
   }
 
-  async function addIpset(entry: string) {
+  async function addZapretEntry(entry: string) {
+    if (zapretBusy) return;
+    zapretBusy = true;
     try {
-      await api.addIpsetEntry(entry);
-      toasts.success(`Добавлено в IPset: ${entry}`);
+      const target = await api.addZapretEntry(entry);
+      toasts.success(`Добавлено в ${target}: ${entry}`);
     } catch (e) {
       toasts.error(errText(e));
+    } finally {
+      zapretBusy = false;
     }
   }
 
@@ -367,7 +322,7 @@
     </div>
   </header>
 
-  <div class="content" bind:this={contentEl} on:wheel={onWheel} on:scroll={onContentScroll}>
+  <div class="content">
     <ZapretCard
       config={config.zapret}
       {strategies}
@@ -379,7 +334,7 @@
       on:gaming={(e) => setGaming(e.detail)}
       on:autoUpdate={(e) => setAutoUpdate(e.detail)}
       on:autoIpset={(e) => setAutoIpset(e.detail)}
-      on:addIpset={(e) => addIpset(e.detail)}
+      on:addEntry={(e) => addZapretEntry(e.detail)}
     />
 
     <TgwsCard
@@ -547,6 +502,7 @@
     overflow-x: hidden;
     padding: 14px 16px 16px;
     overscroll-behavior: contain;
+    scroll-behavior: smooth;
     scrollbar-gutter: stable;
   }
   .folder-action {

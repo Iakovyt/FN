@@ -35,6 +35,12 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError::Msg(format!("sqlite: {e}"))
+    }
+}
+
 impl From<serde_json::Error> for AppError {
     fn from(e: serde_json::Error) -> Self {
         AppError::Msg(e.to_string())

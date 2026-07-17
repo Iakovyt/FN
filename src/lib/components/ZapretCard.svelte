@@ -3,7 +3,7 @@
   import Toggle from "./Toggle.svelte";
   import LogPanel from "./LogPanel.svelte";
   import type { StrategyInfo, ZapretConfig } from "../types";
-  import { isValidIpOrCidr } from "../validation";
+  import { normalizeZapretEntry } from "../validation";
 
   export let config: ZapretConfig;
   export let strategies: StrategyInfo[] = [];
@@ -17,21 +17,28 @@
     gaming: boolean;
     autoUpdate: boolean;
     autoIpset: boolean;
-    addIpset: string;
+    addEntry: string;
   }>();
 
-  let ipsetValue = "";
-  $: ipsetValid = ipsetValue.trim().length === 0 || isValidIpOrCidr(ipsetValue);
+  let entryValue = "";
+  $: normalizedEntry = normalizeZapretEntry(entryValue);
+  $: entryValid = entryValue.trim().length === 0 || normalizedEntry !== null;
 
   function onStrategyChange(e: Event) {
     dispatch("strategy", (e.currentTarget as HTMLSelectElement).value);
   }
 
-  function submitIpset() {
-    const v = ipsetValue.trim();
-    if (!v || !isValidIpOrCidr(v)) return;
-    dispatch("addIpset", v);
-    ipsetValue = "";
+  function submitEntry() {
+    if (!normalizedEntry) return;
+    dispatch("addEntry", normalizedEntry);
+    entryValue = "";
+  }
+
+  function onEntryKeydown(event: KeyboardEvent) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopPropagation();
+    submitEntry();
   }
 </script>
 
@@ -69,20 +76,24 @@
     <Toggle on={config.autoIpset} on:change={(e) => dispatch("autoIpset", e.detail)} />
   </div>
 
-  <div class="ipset-row" class:invalid={!ipsetValid}>
+  <div class="ipset-row" class:invalid={!entryValid}>
     <input
       type="text"
-      placeholder="Добавить IP / подсеть в IPset"
-      bind:value={ipsetValue}
-      on:keydown={(e) => e.key === "Enter" && submitIpset()}
+      placeholder="Домен или IP / подсеть"
+      bind:value={entryValue}
+      on:keydown={onEntryKeydown}
+      on:click|stopPropagation
+      on:pointerdown|stopPropagation
       spellcheck="false"
       autocomplete="off"
+      maxlength="253"
     />
     <button
+      type="button"
       class="add-btn"
-      title="Добавить в IPset"
-      disabled={!ipsetValue.trim() || !ipsetValid}
-      on:click={submitIpset}
+      title="Добавить в список обхода"
+      disabled={!entryValue.trim() || !entryValid || busy}
+      on:click={submitEntry}
     >
       +
     </button>

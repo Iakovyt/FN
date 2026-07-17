@@ -1,18 +1,27 @@
 <script lang="ts">
+  import { tick } from "svelte";
+
   export let lines: string[] = [];
   export let title = "Лог";
 
   let open = false;
   let box: HTMLDivElement | undefined;
 
-  // Auto-scroll to the newest line when open.
-  $: if (open && box && lines.length) {
-    queueMicrotask(() => box && (box.scrollTop = box.scrollHeight));
+  async function toggleLog() {
+    open = !open;
+    if (!open) return;
+    await tick();
+    if (box) box.scrollTop = box.scrollHeight;
   }
 </script>
 
 <div class="logwrap">
-  <button class="loghead" on:click={() => (open = !open)}>
+  <button
+    type="button"
+    class="loghead"
+    aria-expanded={open}
+    on:click|stopPropagation={toggleLog}
+  >
     <span class="chev" class:open>▸</span>
     <span>{title}</span>
     <span class="count">{lines.length}</span>
@@ -65,8 +74,8 @@
     margin-top: 6px;
     max-height: 108px;
     overflow-y: auto;
-    scroll-behavior: smooth;
     overscroll-behavior: contain;
+    contain: content;
     background: rgba(0, 0, 0, 0.28);
     border: 0.5px solid var(--border-soft);
     border-radius: 8px;

@@ -49,3 +49,41 @@ export function isValidIpOrCidr(value: string): boolean {
   if (isValidIPv6(addr)) return mask >= 0 && mask <= 128;
   return false;
 }
+
+/** Accept a plain hostname or an http(s) URL and return its hostname. */
+export function normalizeDomain(value: string): string | null {
+  let domain = value.trim().toLowerCase();
+  if (!domain) return null;
+
+  domain = domain.replace(/^https?:\/\//, "");
+  domain = domain.split(/[/?#]/, 1)[0];
+  domain = domain.replace(/^\*\./, "").replace(/\.$/, "");
+
+  // A port is useful when pasting a URL, but is not part of a host list entry.
+  const port = domain.lastIndexOf(":");
+  if (port > -1 && domain.indexOf(":") === port) {
+    domain = domain.slice(0, port);
+  }
+
+  if (domain.length > 253 || !domain.includes(".")) return null;
+  const labels = domain.split(".");
+  if (
+    labels.some(
+      (label) =>
+        !label ||
+        label.length > 63 ||
+        !/^[a-z0-9-]+$/.test(label) ||
+        label.startsWith("-") ||
+        label.endsWith("-"),
+    )
+  ) {
+    return null;
+  }
+  return domain;
+}
+
+export function normalizeZapretEntry(value: string): string | null {
+  const trimmed = value.trim();
+  if (isValidIpOrCidr(trimmed)) return trimmed;
+  return normalizeDomain(trimmed);
+}

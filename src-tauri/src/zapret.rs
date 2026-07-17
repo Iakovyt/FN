@@ -410,6 +410,56 @@ pub async fn add_ipset_entry(app: &AppHandle, entry: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Append a user domain to the main general host list.
+pub async fn add_general_domain(app: &AppHandle, domain: &str) -> AppResult<()> {
+    let paths = resolve_paths(app)?;
+    ensure_user_lists(&paths)?;
+    let file = paths.lists.join("list-general.txt");
+
+    let existing = std::fs::read_to_string(&file).unwrap_or_default();
+    if existing
+        .lines()
+        .any(|line| line.trim().eq_ignore_ascii_case(domain))
+    {
+        proc::log(app, MODULE, format!("{domain} уже в list-general.txt"));
+        return Ok(());
+    }
+
+    use std::io::Write;
+    let mut output = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file)?;
+    if !existing.is_empty() && !existing.ends_with('\n') {
+        writeln!(output)?;
+    }
+    writeln!(output, "{domain}")?;
+    proc::log(app, MODULE, format!("list-general.txt += {domain}"));
+
+    if app.state::<AppState>().zapret_running() {
+        let active = app
+            .state::<AppState>()
+            .active_strategy
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or_else(|| strategies::PROBE_ORDER[0].to_string());
+        let gaming = app
+            .state::<AppState>()
+            .config
+            .lock()
+            .unwrap()
+            .zapret
+            .gaming_mode;
+        stop(app);
+        spawn_selected_strategy(app, &paths, &active, gaming)?;
+        confirm_started(app).await?;
+        proc::emit_status(app, MODULE, true);
+        proc::log(app, MODULE, "list-general.txt применён");
+    }
+    Ok(())
+}
+
 // ---- Auto-update of strategy lists / ipsets -----------------------------
 
 /// Re-download the release if a newer tag is available. Returns true if updated.

@@ -195,6 +195,20 @@ pub async fn add_ipset_entry(app: AppHandle, entry: String) -> AppResult<()> {
     zapret::add_ipset_entry(&app, &entry).await
 }
 
+#[tauri::command]
+pub async fn add_zapret_entry(app: AppHandle, entry: String) -> AppResult<String> {
+    let entry = entry.trim();
+    if is_valid_ip_or_cidr(entry) {
+        zapret::add_ipset_entry(&app, entry).await?;
+        return Ok("IPSet".into());
+    }
+
+    let domain =
+        normalize_domain(entry).ok_or_else(|| AppError::InvalidAddress(entry.to_string()))?;
+    zapret::add_general_domain(&app, &domain).await?;
+    Ok("list-general.txt".into())
+}
+
 // ---- TGWS ---------------------------------------------------------------
 
 #[tauri::command]
@@ -299,5 +313,57 @@ fn is_valid_ip_or_cidr(value: &str) -> bool {
                 IpAddr::V6(_) => bits <= 128,
             }
         }
+    }
+}
+
+fn normalize_domain(value: &str) -> Option<String> {
+    let mut domain = value.trim().to_ascii_lowercase();
+    if let Some(rest) = domain.strip_prefix("https://") {
+        domain = rest.to_string();
+    } else if let Some(rest) = domain.strip_prefix("http://") {
+        domain = rest.to_string();
+    }
+    domain = domain
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches("*.")
+        .trim_end_matches('.')
+        .to_string();
+
+    if let Some((host, port)) = domain.rsplit_once(':') {
+        if !host.contains(':') && port.parse::<u16>().is_ok() {
+            domain = host.to_string();
+        }
+    }
+
+    if domain.len() > 253 || !domain.contains('.') {
+        return None;
+    }
+    let valid = domain.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    });
+    valid.then_some(domain)
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_domains_and_urls() {
+        assert_eq!(normalize_domain("Discord.com"), Some("discord.com".into()));
+        assert_eq!(
+            normalize_domain("https://www.example.com/path"),
+            Some("www.example.com".into())
+        );
+        assert_eq!(normalize_domain("bad value"), None);
+        assert_eq!(normalize_domain("localhost"), None);
     }
 }

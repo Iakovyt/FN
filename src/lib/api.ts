@@ -55,6 +55,10 @@ export const setAutoIpset = (enabled: boolean) =>
 export const addIpsetEntry = (entry: string) =>
   invoke<void>("add_ipset_entry", { entry });
 
+/** Add a domain to list-general.txt or an IP/CIDR to the active ipset. */
+export const addZapretEntry = (entry: string) =>
+  invoke<string>("add_zapret_entry", { entry });
+
 // ---- TGWS ---------------------------------------------------------------
 
 export const tgwsStart = () => invoke<void>("tgws_start");

@@ -1,11 +1,13 @@
 mod autostart;
 mod commands;
 mod config;
+mod db;
 mod error;
 mod github;
 mod proc;
 mod state;
 mod strategies;
+mod strategy;
 mod tgws;
 mod tray;
 mod zapret;
@@ -33,7 +35,24 @@ pub fn run() {
 
             // Load persisted config into shared state.
             let cfg = config::load(&handle);
-            app.manage(AppState::new(cfg.clone()));
+
+            // Hydra's strategy/history DB. Missing/broken is non-fatal —
+            // zapret/tgws don't depend on it, so Hydra just stays inert.
+            let db = match db::open(&handle) {
+                Ok(db) => {
+                    if let Ok(conn) = db.conn.lock() {
+                        if let Err(error) = strategy::sync_builtin_strategies(&conn) {
+                            proc::log(&handle, "zapret", format!("Hydra: sync стратегий: {error}"));
+                        }
+                    }
+                    Some(db)
+                }
+                Err(error) => {
+                    proc::log(&handle, "zapret", format!("Hydra: БД недоступна: {error}"));
+                    None
+                }
+            };
+            app.manage(AppState::new(cfg.clone(), db));
 
             // System tray + menu.
             tray::build(&handle)?;
@@ -74,6 +93,7 @@ pub fn run() {
             commands::set_auto_update,
             commands::set_auto_ipset,
             commands::add_ipset_entry,
+            commands::add_zapret_entry,
             commands::tgws_start,
             commands::tgws_stop,
             commands::set_tgws_endpoint,

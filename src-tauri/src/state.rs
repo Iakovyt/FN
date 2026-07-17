@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use crate::config::AppConfig;
+use crate::db::Db;
 
 const LOG_CAP: usize = 20;
 
@@ -72,10 +73,14 @@ pub struct AppState {
     pub zapret_tag: Mutex<Option<String>>,
     /// The concrete strategy winws is currently running (resolved from "auto").
     pub active_strategy: Mutex<Option<String>>,
+    /// Hydra's strategy/history store. `None` when the DB failed to open
+    /// (e.g. a locked or corrupt file) — Hydra features degrade instead of
+    /// taking down the rest of the app, since zapret/tgws don't depend on it.
+    pub db: Option<Db>,
 }
 
 impl AppState {
-    pub fn new(config: AppConfig) -> Self {
+    pub fn new(config: AppConfig, db: Option<Db>) -> Self {
         Self {
             config: Mutex::new(config),
             zapret: Mutex::new(ProcHandle::default()),
@@ -86,6 +91,7 @@ impl AppState {
             started_at: Instant::now(),
             zapret_tag: Mutex::new(None),
             active_strategy: Mutex::new(None),
+            db,
         }
     }
 

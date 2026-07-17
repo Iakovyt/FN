@@ -176,6 +176,37 @@ pub fn build_batch_args(id: &str, paths: &ZapretPaths) -> AppResult<Vec<String>>
         .ok_or_else(|| AppError::Msg(format!("Стратегия не найдена: {id}")))?;
     let bytes = std::fs::read(&path)?;
     let text = String::from_utf8_lossy(&bytes);
+    let command = extract_winws_command(&text).ok_or_else(|| {
+        AppError::Msg(format!(
+            "В файле {} не найдена команда запуска winws.exe",
+            path.display()
+        ))
+    })?;
+
+    let bin = with_trailing_separator(&paths.bin);
+    let lists = with_trailing_separator(&paths.lists);
+    let (game_tcp, game_udp) = game_filter_ports(&paths.root);
+    let expanded = command
+        .replace("%BIN%", &bin)
+        .replace("%LISTS%", &lists)
+        .replace("%GameFilterTCP%", game_tcp)
+        .replace("%GameFilterUDP%", game_udp);
+    let args = split_command_line(&expanded);
+    if args.is_empty() {
+        return Err(AppError::Msg(format!(
+            "Пустая стратегия: {}",
+            path.display()
+        )));
+    }
+    Ok(args)
+}
+
+/// Scan a Flowseal-style strategy `.bat` for its `winws.exe ...` invocation,
+/// stitching together `^`-continued lines. Placeholders (`%BIN%`, `%LISTS%`,
+/// `%GameFilterTCP%`, `%GameFilterUDP%`) are left untouched — callers decide
+/// whether to substitute real paths (`build_batch_args`) or keep them
+/// symbolic (the Hydra builtin-strategy importer).
+pub(crate) fn extract_winws_command(text: &str) -> Option<String> {
     let mut command = String::new();
     let mut collecting = false;
 
@@ -201,29 +232,7 @@ pub fn build_batch_args(id: &str, paths: &ZapretPaths) -> AppResult<Vec<String>>
         }
     }
 
-    if command.trim().is_empty() {
-        return Err(AppError::Msg(format!(
-            "В файле {} не найдена команда запуска winws.exe",
-            path.display()
-        )));
-    }
-
-    let bin = with_trailing_separator(&paths.bin);
-    let lists = with_trailing_separator(&paths.lists);
-    let (game_tcp, game_udp) = game_filter_ports(&paths.root);
-    let expanded = command
-        .replace("%BIN%", &bin)
-        .replace("%LISTS%", &lists)
-        .replace("%GameFilterTCP%", game_tcp)
-        .replace("%GameFilterUDP%", game_udp);
-    let args = split_command_line(&expanded);
-    if args.is_empty() {
-        return Err(AppError::Msg(format!(
-            "Пустая стратегия: {}",
-            path.display()
-        )));
-    }
-    Ok(args)
+    (!command.trim().is_empty()).then_some(command)
 }
 
 fn append_command_part(command: &mut String, part: &str) {
@@ -262,7 +271,7 @@ fn game_filter_ports(root: &Path) -> (&'static str, &'static str) {
     }
 }
 
-fn split_command_line(command: &str) -> Vec<String> {
+pub(crate) fn split_command_line(command: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut quoted = false;
